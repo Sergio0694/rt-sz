@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+    <TargetFramework>net11.0-windows10.0.22621.0</TargetFramework>
     <Platforms>x64;arm64</Platforms>
     <Nullable>enable</Nullable>
     <AssemblyName>winrt_component_minimal</AssemblyName>
@@ -10,8 +10,9 @@
     <EnableMsixTooling>true</EnableMsixTooling>
       
     <!-- CsWinRT settings -->
-    <WindowsSdkPackageVersion>10.0.22621.35-preview</WindowsSdkPackageVersion>
+    <WindowsSdkPackageVersion>10.0.22621.56</WindowsSdkPackageVersion>
     <CsWinRTComponent>true</CsWinRTComponent>
+    <CsWinRTGenerateProjection>false</CsWinRTGenerateProjection>
       
     <!-- CsWinRT size saving settings -->
     <CsWinRTEnableDynamicObjectsSupport>false</CsWinRTEnableDynamicObjectsSupport>
@@ -34,7 +35,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.1.0-prerelease.240602.1" />
+    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
   </ItemGroup>
 
 </Project>

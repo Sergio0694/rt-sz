@@ -48,7 +48,9 @@ jobs:
     steps:
       - name: Install dependencies
         if: ${{ matrix.os == 'linux' }}
-        run: sudo apt-get install --no-install-recommends -y libkrb5-dev liblttng-ust-dev ninja-build libicu-dev libssl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libkrb5-dev liblttng-ust-dev ninja-build libicu-dev libssl-dev
       - name: Checkout runtime repo
         uses: actions/checkout@v4
         with:
@@ -72,7 +74,7 @@ jobs:
           cd runtime
           git checkout baseline
           git rev-parse HEAD
-          ${{ matrix.buildscript }} clr.aot+libs.native+libs.sfx -c Release ${{ matrix.propertyswitch }}p:RunAnalyzers=false
+          ${{ matrix.buildscript }} clr.aot+libs.native+libs.sfx -c Release ${{ matrix.propertyswitch }}p:RunAnalyzers=false ${{ matrix.propertyswitch }}p:NoPgoOptimize=true
       - uses: actions/upload-artifact@v4
         with:
           name: baseline-${{ matrix.os }}
@@ -80,14 +82,17 @@ jobs:
           path: |
             runtime/artifacts/bin/coreclr/${{ matrix.os }}.x64.Release/aotsdk
             runtime/artifacts/bin/coreclr/${{ matrix.os }}.x64.Release/ilc-published
-            runtime/artifacts/bin/microsoft.netcore.app.runtime.${{ matrix.osrid }}-x64/Release/runtimes/${{ matrix.osrid }}-x64/lib/net9.0
+            runtime/artifacts/bin/microsoft.netcore.app.runtime.${{ matrix.osrid }}-x64/Release/runtimes/${{ matrix.osrid }}-x64/lib/net11.0
             runtime/artifacts/bin/microsoft.netcore.app.runtime.${{ matrix.osrid }}-x64/Release/runtimes/${{ matrix.osrid }}-x64/native
+      - name: Taskkill dotnet.exe
+        if: ${{ matrix.os == 'windows' }}
+        run: taskkill -im dotnet.exe -f
       - name: Build compare
         run: |
           cd runtime
           git checkout compare
           git rev-parse HEAD
-          ${{ matrix.buildscript }} clr.aot+libs.native+libs.sfx -c Release ${{ matrix.propertyswitch }}p:RunAnalyzers=false
+          ${{ matrix.buildscript }} clr.aot+libs.native+libs.sfx -c Release ${{ matrix.propertyswitch }}p:RunAnalyzers=false ${{ matrix.propertyswitch }}p:NoPgoOptimize=true
       - uses: actions/upload-artifact@v4
         with:
           name: compare-${{ matrix.os }}
@@ -95,7 +100,7 @@ jobs:
           path: |
             runtime/artifacts/bin/coreclr/${{ matrix.os }}.x64.Release/aotsdk
             runtime/artifacts/bin/coreclr/${{ matrix.os }}.x64.Release/ilc-published
-            runtime/artifacts/bin/microsoft.netcore.app.runtime.${{ matrix.osrid }}-x64/Release/runtimes/${{ matrix.osrid }}-x64/lib/net9.0
+            runtime/artifacts/bin/microsoft.netcore.app.runtime.${{ matrix.osrid }}-x64/Release/runtimes/${{ matrix.osrid }}-x64/lib/net11.0
             runtime/artifacts/bin/microsoft.netcore.app.runtime.${{ matrix.osrid }}-x64/Release/runtimes/${{ matrix.osrid }}-x64/native
 
   dotnet:
@@ -111,6 +116,7 @@ jobs:
           - avalonia.app
           - reflection
           - kestrel-minimal
+          - TodosApi
         include:
           - os: linux
             osrid: linux
@@ -120,10 +126,11 @@ jobs:
             vm: windows-latest
     runs-on: ${{ matrix.vm }}
     steps:
+
       - name: Install .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9
+          dotnet-version: "11.0"
           dotnet-quality: daily
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -135,41 +142,45 @@ jobs:
         run: |
           chmod +x $GITHUB_WORKSPACE/coreclr/linux.x64.Release/ilc-published/ilc
           cd src/${{ matrix.project }}
-          dotnet publish -p:IlcToolsPath=$GITHUB_WORKSPACE/coreclr/linux.x64.Release/ilc-published/ -p:IlcSdkPath=$GITHUB_WORKSPACE/coreclr/linux.x64.Release/aotsdk/ -p:IlcFrameworkPath=$GITHUB_WORKSPACE/microsoft.netcore.app.runtime.linux-x64/Release/runtimes/linux-x64/lib/net9.0/ -p:IlcFrameworkNativePath=$GITHUB_WORKSPACE/microsoft.netcore.app.runtime.linux-x64/Release/runtimes/linux-x64/native/ -p:IlcGenerateMstatFile=true -p:IlcGenerateDgmlFile=true -p:IlcGenerateMapFile=true
+          dotnet publish -p:IlcToolsPath=$GITHUB_WORKSPACE/coreclr/linux.x64.Release/ilc-published/ -p:IlcSdkPath=$GITHUB_WORKSPACE/coreclr/linux.x64.Release/aotsdk/ -p:IlcFrameworkPath=$GITHUB_WORKSPACE/microsoft.netcore.app.runtime.linux-x64/Release/runtimes/linux-x64/lib/net11.0/ -p:IlcFrameworkNativePath=$GITHUB_WORKSPACE/microsoft.netcore.app.runtime.linux-x64/Release/runtimes/linux-x64/native/ -p:IlcGenerateMstatFile=true -p:IlcGenerateDgmlFile=true -p:IlcGenerateMapFile=true ${{ toJson(github.event.issue.labels) == '[]' && ' ' || format('-p:{0}', join(github.event.issue.labels.*.name, ' -p:')) }}
       - name: Publish (Windows)
         if: ${{ matrix.os == 'windows' }}
         shell: cmd
         run: |
           cd src\${{ matrix.project }}
-          dotnet publish -p:IlcToolsPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\ilc-published\ -p:IlcSdkPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\aotsdk\ -p:IlcFrameworkPath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\lib\net9.0\ -p:IlcFrameworkNativePath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\native\ -p:IlcGenerateMstatFile=true -p:IlcGenerateDgmlFile=true -p:IlcGenerateMapFile=true
+          dotnet publish -p:IlcToolsPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\ilc-published\ -p:IlcSdkPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\aotsdk\ -p:IlcFrameworkPath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\lib\net11.0\ -p:IlcFrameworkNativePath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\native\ -p:IlcGenerateMstatFile=true -p:IlcGenerateDgmlFile=true -p:IlcGenerateMapFile=true ${{ toJson(github.event.issue.labels) == '[]' && ' ' || format('-p:{0}', join(github.event.issue.labels.*.name, ' -p:')) }}
       - uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
           retention-days: 90
           name: logs-${{ matrix.project }}-${{ matrix.flavor }}-${{ matrix.os }}
           path: |
-            src/${{ matrix.project }}/obj/Release/net9.0/${{ matrix.osrid }}-x64/native/${{ matrix.project }}.mstat
-            src/${{ matrix.project }}/obj/Release/net9.0/${{ matrix.osrid }}-x64/native/${{ matrix.project }}.map.xml
-            src/${{ matrix.project }}/obj/Release/net9.0/${{ matrix.osrid }}-x64/native/*.dgml.xml
+            src/${{ matrix.project }}/obj/Release/net11.0/${{ matrix.osrid }}-x64/native/${{ matrix.project }}.mstat
+            src/${{ matrix.project }}/obj/Release/net11.0/${{ matrix.osrid }}-x64/native/${{ matrix.project }}.map.xml
+            src/${{ matrix.project }}/obj/Release/net11.0/${{ matrix.osrid }}-x64/native/*.dgml.xml
       - name: Log stats (Linux)
         if: ${{ matrix.os == 'linux' }}
         run: |
           echo -n '${{ steps.artifact-upload-step.outputs.artifact-url }} ' > ${{ matrix.project }}-${{ matrix.os }}.${{ matrix.flavor }}.txt
-          stat -c%s src/${{ matrix.project }}/bin/Release/net9.0/linux-x64/native/${{ matrix.project }} >> ${{ matrix.project }}-${{ matrix.os }}.${{ matrix.flavor }}.txt
-          ls -la src/${{ matrix.project }}/bin/Release/net9.0/linux-x64/native/
+          stat -c%s src/${{ matrix.project }}/bin/Release/net11.0/linux-x64/native/${{ matrix.project }} >> ${{ matrix.project }}-${{ matrix.os }}.${{ matrix.flavor }}.txt
+          ls -la src/${{ matrix.project }}/bin/Release/net11.0/linux-x64/native/
       - name: Log stats (Windows)
         if: ${{ matrix.os == 'windows' }}
         shell: cmd
         run: |
-          FOR /F "usebackq" %%A IN ('src\${{ matrix.project }}\bin\Release\net9.0\win-x64\native\${{ matrix.project }}.exe') DO set SIZE=%%~zA
+          FOR /F "usebackq" %%A IN ('src\${{ matrix.project }}\bin\Release\net11.0\win-x64\native\${{ matrix.project }}.exe') DO set SIZE=%%~zA
           <nul set /p="${{ steps.artifact-upload-step.outputs.artifact-url }} %SIZE%" > ${{ matrix.project }}-${{ matrix.os }}.${{ matrix.flavor }}.txt
           echo Size is %SIZE%
-          dir src\${{ matrix.project }}\bin\Release\net9.0\win-x64\native\
+          dir src\${{ matrix.project }}\bin\Release\net11.0\win-x64\native\
       - uses: actions/upload-artifact@v4
         with:
-          retention-days: 1
           name: summary-${{ matrix.project }}-${{ matrix.os }}-${{ matrix.flavor }}
           path: ${{ matrix.project }}-${{ matrix.os }}.${{ matrix.flavor }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          retention-days: 5
+          name: binaries-${{ matrix.project }}-${{ matrix.os }}-${{ matrix.flavor }}
+          path: src/${{ matrix.project }}/bin/Release/net11.0/${{ matrix.osrid }}-x64/native/*
   
   msbuild:
     needs: build
@@ -177,15 +188,16 @@ jobs:
       matrix:
         flavor: [baseline, compare]
         project: [
-          { name: winrt-component-full, binary: winrt_component_full.dll },
+#          { name: winrt-component-full, binary: winrt_component_full.dll },
           { name: winrt-component-minimal, binary: winrt_component_minimal.dll }
         ]
     runs-on: windows-latest
     steps:
+
       - name: Install .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9
+          dotnet-version: "11.0"
           dotnet-quality: daily
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -196,28 +208,32 @@ jobs:
         shell: cmd
         run: |
           cd src\${{ matrix.project.name }}
-          dotnet msbuild /restore -t:publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 -p:IlcToolsPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\ilc-published\ -p:IlcSdkPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\aotsdk\ -p:IlcFrameworkPath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\lib\net9.0\ -p:IlcFrameworkNativePath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\native\ -p:IlcGenerateMstatFile=true -p:IlcGenerateDgmlFile=true -p:IlcGenerateMapFile=true
+          dotnet msbuild /restore -t:publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 -p:IlcToolsPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\ilc-published\ -p:IlcSdkPath=%GITHUB_WORKSPACE%\coreclr\windows.x64.Release\aotsdk\ -p:IlcFrameworkPath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\lib\net11.0\ -p:IlcFrameworkNativePath=%GITHUB_WORKSPACE%\microsoft.netcore.app.runtime.win-x64\Release\runtimes\win-x64\native\ -p:IlcGenerateMstatFile=true -p:IlcGenerateDgmlFile=true -p:IlcGenerateMapFile=true ${{ toJson(github.event.issue.labels) == '[]' && ' ' || format('-p:{0}', join(github.event.issue.labels.*.name, ' -p:')) }}
       - uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
           retention-days: 90
           name: logs-${{ matrix.project.name }}-${{ matrix.flavor }}-windows
           path: |
-            src/${{ matrix.project.name }}/obj/x64/Release/net9.0-windows10.0.22621.0/win-x64/native/${{ matrix.project.name }}.mstat
-            src/${{ matrix.project.name }}/obj/x64/Release/net9.0-windows10.0.22621.0/win-x64/native/${{ matrix.project.name }}.map.xml
-            src/${{ matrix.project.name }}/obj/x64/Release/net9.0-windows10.0.22621.0/win-x64/native/*.dgml.xml
+            src/${{ matrix.project.name }}/obj/x64/Release/net11.0-windows10.0.22621.0/win-x64/native/*.mstat
+            src/${{ matrix.project.name }}/obj/x64/Release/net11.0-windows10.0.22621.0/win-x64/native/*.map.xml
+            src/${{ matrix.project.name }}/obj/x64/Release/net11.0-windows10.0.22621.0/win-x64/native/*.dgml.xml
       - name: Log stats
         shell: cmd
         run: |
-          FOR /F "usebackq" %%A IN ('src\${{ matrix.project.name }}\bin\x64\Release\net9.0-windows10.0.22621.0\win-x64\native\${{ matrix.project.binary }}') DO set SIZE=%%~zA
+          FOR /F "usebackq" %%A IN ('src\${{ matrix.project.name }}\bin\x64\Release\net11.0-windows10.0.22621.0\win-x64\native\${{ matrix.project.binary }}') DO set SIZE=%%~zA
           <nul set /p="${{ steps.artifact-upload-step.outputs.artifact-url }} %SIZE%" > ${{ matrix.project.name }}-windows.${{ matrix.flavor }}.txt
           echo Size is %SIZE%
-          dir src\${{ matrix.project.name }}\bin\x64\Release\net9.0-windows10.0.22621.0\win-x64\native\
+          dir src\${{ matrix.project.name }}\bin\x64\Release\net11.0-windows10.0.22621.0\win-x64\native\
       - uses: actions/upload-artifact@v4
         with:
-          retention-days: 1
           name: summary-${{ matrix.project.name }}-windows-${{ matrix.flavor }}
           path: ${{ matrix.project.name }}-windows.${{ matrix.flavor }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          retention-days: 5
+          name: binaries-${{ matrix.project.name }}-windows-${{ matrix.flavor }}
+          path: src/${{ matrix.project.name }}/bin/x64/Release/net11.0-windows10.0.22621.0/win-x64/native/*
 
   summarize:
     needs: [dotnet, msbuild]
